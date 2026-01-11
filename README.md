@@ -1,6 +1,20 @@
-# BubbleID - 气泡识别与追踪 C++ 库
+# BubbleID-cpp - 气泡识别与追踪 C++ 核心算法库
 
-BubbleID 是一个用于气泡检测、追踪和分析的 C++ 库。它基于 YOLOv8-seg 实例分割模型和 OCSort 多目标追踪算法，能够对视频中的气泡进行识别、追踪和数据分析。
+> **注意**: 这是 [BubbleID](https://github.com/cldunlap73/BubbleID.git) 项目的 **C++ 核心算法版本**。原项目是一个基于 Python 的气泡识别与追踪框架，用于分析池沸腾图像。本项目将核心算法用 C++ 重新实现，提供更高的性能和更好的集成能力。
+
+## 关于原项目
+
+原项目 [BubbleID](https://github.com/cldunlap73/BubbleID.git) 是一个用于分析池沸腾图像的深度学习框架，来自论文 **"BubbleID: A deep learning framework for bubble interface dynamics analysis"**。它结合了追踪、分割和分类模型，用于离体分类、速度界面预测和气泡统计提取。原项目基于 ocsort 和 detectron2 构建。
+
+## 本项目说明
+
+BubbleID-cpp 是原 Python 项目的 **C++ 核心算法实现版本**，提供了：
+
+- **高性能**: C++ 实现带来更快的执行速度
+- **易于集成**: 可作为 C++ 库集成到其他项目中
+- **核心功能**: 实现了原项目的核心算法，包括气泡检测、追踪和数据分析
+
+BubbleID-cpp 是一个用于气泡检测、追踪和分析的 C++ 库。它基于 YOLOv8-seg 实例分割模型和 OCSort 多目标追踪算法，能够对视频中的气泡进行识别、追踪和数据分析。
 
 ## 功能特性
 
@@ -188,9 +202,14 @@ bubbleID-package/
 
 5. **性能**: 对于大型视频，处理时间可能较长。建议使用 GPU 加速。
 
+## 相关项目
+
+- **原 Python 项目**: [BubbleID](https://github.com/cldunlap73/BubbleID.git) - 基于 Python 的完整框架，包含 GUI 界面和更多功能
+- **论文**: BubbleID: A deep learning framework for bubble interface dynamics analysis
+
 ## 许可证
 
-请参考原项目的许可证文件。
+本项目遵循原项目的许可证。原项目使用 Apache-2.0 和 MIT 双重许可证。
 
 ## 贡献
 
@@ -199,3 +218,7 @@ bubbleID-package/
 ## 联系方式
 
 如有问题或建议，请通过 Issue 联系。
+
+---
+
+**致谢**: 本项目基于 [cldunlap73/BubbleID](https://github.com/cldunlap73/BubbleID.git) 项目，感谢原作者的优秀工作。
