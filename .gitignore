@@ -1,0 +1,35 @@
+# 构建目录
+build/
+cmake-build-*/
+
+# 编译产物
+*.o
+*.a
+*.so
+*.dylib
+*.exe
+
+# CMake 生成文件
+CMakeCache.txt
+CMakeFiles/
+cmake_install.cmake
+Makefile
+*.cmake
+
+# IDE 文件
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# 系统文件
+.DS_Store
+Thumbs.db
+
+# 第三方依赖（如果包含在仓库中）
+third_party/
+
+# 测试输出
+*.log
+test_results/
