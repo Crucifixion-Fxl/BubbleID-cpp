@@ -1,23 +1,36 @@
 #include "bubbleID/bubbleID.h"
 #include <iostream>
 
-int main(int argc, char* argv[]) {
-    if (argc < 7) {
-        std::cerr << "Usage: " << argv[0] 
-                  << " <images_folder> <video_path> <save_folder> <extension> <model_path> <device>" 
-                  << std::endl;
-        std::cerr << "Example: " << argv[0]
-                  << " ./images ./video.avi ./results test1 ./model.onnx cpu"
-                  << std::endl;
-        return 1;
-    }
+// 调试用默认参数（无命令行参数时使用）
+static const std::string DEFAULT_IMAGES_FOLDER = "/root/workspace/BubbleID-cpp/data/Images-120W";
+static const std::string DEFAULT_VIDEO_PATH    = "/root/workspace/BubbleID-cpp/data/120W.avi";
+static const std::string DEFAULT_SAVE_FOLDER   = "/root/workspace/BubbleID-cpp/result";
+static const std::string DEFAULT_EXTENSION    = "ori";
+static const std::string DEFAULT_MODEL_PATH   = "/root/workspace/BubbleID-cpp/weights/bubble_seg.onnx";
+static const std::string DEFAULT_DEVICE       = "cpu";
 
-    std::string imagesfolder = argv[1];
-    std::string videopath = argv[2];
-    std::string savefolder = argv[3];
-    std::string extension = argv[4];
-    std::string modelweights = argv[5];
-    std::string device = argv[6];
+int main(int argc, char* argv[]) {
+    std::string imagesfolder, videopath, savefolder, extension, modelweights, device;
+
+    if (argc >= 7) {
+        imagesfolder = argv[1];
+        videopath    = argv[2];
+        savefolder   = argv[3];
+        extension    = argv[4];
+        modelweights = argv[5];
+        device       = argv[6];
+    } else {
+        std::cerr << "Usage: " << argv[0]
+                  << " <images_folder> <video_path> <save_folder> <extension> <model_path> <device>"
+                  << std::endl;
+        std::cerr << "No args: using default paths (for debugging)." << std::endl;
+        imagesfolder = DEFAULT_IMAGES_FOLDER;
+        videopath    = DEFAULT_VIDEO_PATH;
+        savefolder   = DEFAULT_SAVE_FOLDER;
+        extension    = DEFAULT_EXTENSION;
+        modelweights = DEFAULT_MODEL_PATH;
+        device       = DEFAULT_DEVICE;
+    }
 
     std::cout << "=== BubbleID 示例程序 ===" << std::endl;
     std::cout << "图像文件夹: " << imagesfolder << std::endl;
