@@ -10,7 +10,7 @@ set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
 
 # 默认单线程编译（cmake --build 时等效 -j 1，可在命令行用 -j N 覆盖）
-set(CMAKE_BUILD_PARALLEL_LEVEL 1)
+set(CMAKE_BUILD_PARALLEL_LEVEL 128)
 
 # 查找依赖包
 find_package(OpenCV REQUIRED)

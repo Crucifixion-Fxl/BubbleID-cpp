@@ -58,14 +58,14 @@ int main(int argc, char* argv[]) {
         std::cout << "气泡检测和追踪完成！" << std::endl;
 
         // 可选：绘制可视化图表
-        // std::cout << "绘制蒸汽分数图..." << std::endl;
-        // analysis.Plotvf();
+        std::cout << "绘制蒸汽分数图..." << std::endl;
+        analysis.Plotvf();
         
-        // std::cout << "绘制气泡数量图..." << std::endl;
-        // analysis.Plotbc();
+        std::cout << "绘制气泡数量图..." << std::endl;
+        analysis.Plotbc();
         
-        // std::cout << "分析气泡界面速度（气泡ID=0）..." << std::endl;
-        // analysis.PlotInterfaceVelocity(0);
+        std::cout << "分析气泡界面速度（气泡ID=0）..." << std::endl;
+        analysis.PlotInterfaceVelocity(0);
 
         std::cout << "处理完成！结果已保存到: " << savefolder << std::endl;
     }
