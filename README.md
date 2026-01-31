@@ -48,9 +48,12 @@ sudo apt-get install -y \
     cmake \
     libopencv-dev \
     libeigen3-dev \
+    libcurl4-openssl-dev \
     python3-dev \
     python3-numpy
 ```
+
+> **说明**: `libcurl4-openssl-dev` 用于满足 OpenCV 依赖链中 libgdal/libnetcdf 对 libcurl 的链接需求，缺少时链接示例程序会报 `undefined reference to 'curl_*@CURL_OPENSSL_4'`。
 
 ### macOS
 
@@ -60,7 +63,19 @@ brew install opencv eigen python3 numpy
 
 ### ONNX Runtime
 
-下载并解压 ONNX Runtime 到 `third_party/onnxruntime` 目录，或设置 `ONNXRUNTIME_DIR` CMake 变量。
+- 从 [ONNX Runtime 发布页](https://github.com/microsoft/onnxruntime/releases) 下载 **Linux x64** 包，解压到项目下的 `third_party/onnxruntime`，保证存在：
+  - `third_party/onnxruntime/include/onnxruntime_cxx_api.h`
+  - `third_party/onnxruntime/lib/*.so`
+- 若安装在其他路径，配置时指定：`-DONNXRUNTIME_DIR=/path/to/onnxruntime`
+- **CPU 版与 CUDA 版**：若使用的是 **仅 CPU** 的 ONNX Runtime（未带 CUDA Execution Provider），配置时请加 `-DUSE_ORT_CUDA=OFF`（默认即为 OFF），否则链接会报 `undefined reference to 'OrtSessionOptionsAppendExecutionProvider_CUDA'`。若使用带 CUDA 的 ORT，可设 `-DUSE_ORT_CUDA=ON`。
+
+### third_party 目录
+
+```
+third_party/
+├── onnxruntime/    # 必须：ONNX Runtime 解压后的目录（含 include/、lib/）
+└── matplotlib-cpp/  # 可选：用于 Plotvf/Plotbc 可视化，仅头文件
+```
 
 ## 编译安装
 
@@ -68,21 +83,65 @@ brew install opencv eigen python3 numpy
 # 创建构建目录
 mkdir build && cd build
 
-# 配置 CMake（根据需要设置 ONNXRUNTIME_DIR）
+# 配置 CMake（按需设置）
 cmake .. \
     -DONNXRUNTIME_DIR=/path/to/onnxruntime \
+    -DUSE_ORT_CUDA=OFF \
     -DCMAKE_INSTALL_PREFIX=/usr/local
+```
+
+**常用选项**：
+- `ONNXRUNTIME_DIR`：ONNX Runtime 根目录（未放在 `third_party/onnxruntime` 时必设）。
+- `USE_ORT_CUDA`：使用 **CPU 版** ONNX Runtime 时务必设为 `OFF`，否则会链接错误；使用带 CUDA 的 ORT 时可设为 `ON`。
+
+```bash
+# 仅使用默认 third_party 路径时的最简配置
+cmake ..
 
 # 编译
-make -j$(nproc)
+cmake --build . -j$(nproc)
 
 # 安装（可选）
-sudo make install
+sudo cmake --install .
+```
+
+## 常见编译/链接错误与解决
+
+| 错误现象 | 原因 | 解决方法 |
+|----------|------|----------|
+| `onnxruntime_cxx_api.h: No such file or directory` | 未放置或未正确指定 ONNX Runtime | 将 ONNX Runtime 解压到 `third_party/onnxruntime`（含 `include/`、`lib/`），或配置时加 `-DONNXRUNTIME_DIR=/path/to/onnxruntime` |
+| `undefined reference to 'OrtSessionOptionsAppendExecutionProvider_CUDA'` | 使用的是 **CPU 版** ONNX Runtime，却链接了需要 CUDA 的代码 | 配置时加 `-DUSE_ORT_CUDA=OFF`（默认即为 OFF）；或改用带 CUDA 的 ONNX Runtime 并设 `-DUSE_ORT_CUDA=ON` |
+| `undefined reference to 'curl_*@CURL_OPENSSL_4'`（来自 libgdal / libnetcdf） | OpenCV 依赖链需要 libcurl，但未安装或未链接 | 安装开发包：`sudo apt-get install libcurl4-openssl-dev`，并确保 CMake 能找到 CURL（项目已配置 `target_link_libraries(… CURL::libcurl)`） |
+| `Association.hpp` / 其他 ocsort 头文件找不到 | 头文件路径与 `#include` 写法不一致 | 源码中应使用 `#include "ocsort/xxx.hpp"`，且 CMake 中已包含 `include/` 目录，无需再单独加 `include/ocsort` |
+| 运行时报 `libstdc++.so.6: version 'GLIBCXX_3.4.30' not found`（required by libgdal / libicuuc） | 环境中优先加载了 **Miniconda/conda** 里较旧的 `libstdc++`，而系统 libgdal 等需要更新版符号 | 运行时优先使用系统库：`LD_LIBRARY_PATH=/usr/lib/x86_64-linux-gnu:/lib/x86_64-linux-gnu:$LD_LIBRARY_PATH ./build/bin/bubbleID_example`；或先执行 `conda deactivate` 再运行；或使用 `LD_PRELOAD=/usr/lib/x86_64-linux-gnu/libstdc++.so.6 ./build/bin/bubbleID_example` |
+
+若清理后重新配置仍报错，可先删除 `build` 再执行：
+
+```bash
+rm -rf build && mkdir build && cd build
+cmake .. -DUSE_ORT_CUDA=OFF
+cmake --build . -j$(nproc)
 ```
 
 ## 使用方法
 
-### 基本使用
+### 运行示例程序
+
+若仓库中自带 ONNX 模型文件（如 `model.onnx`、`models/bubble.onnx` 等），可直接在命令行中把模型路径传给示例程序：
+
+```bash
+./build/bin/bubbleID_example <图像文件夹> <视频路径> <结果保存目录> <扩展名> <模型路径.onnx> <cpu|gpu>
+```
+
+示例（模型在项目根目录或 `models/` 下）：
+
+```bash
+./build/bin/bubbleID_example ./images ./video.avi ./results test1 ./model.onnx cpu
+# 或
+./build/bin/bubbleID_example ./images ./video.avi ./results test1 ./models/your_model.onnx cpu
+```
+
+### 基本使用（代码集成）
 
 ```cpp
 #include "bubbleID/bubbleID.h"
@@ -170,37 +229,55 @@ DataAnalysis(
 ## 目录结构
 
 ```
-bubbleID-package/
+BubbleID-cpp/
 ├── CMakeLists.txt          # CMake 构建配置
 ├── README.md               # 本文档
-├── include/                # 头文件目录
+├── INSTALL.md              # 安装说明
+├── PACKAGE_INFO.md         # 包信息
+├── install.sh              # 安装脚本
+├── LICENSE
+│
+├── include/                # 头文件
 │   ├── bubbleID/
-│   │   └── bubbleID.h     # 主头文件
-│   ├── yolov8_seg/        # YOLOv8 相关头文件
-│   └── ocsort/            # OCSort 追踪器头文件
-├── src/                    # 源文件目录
+│   │   └── bubbleID.h
+│   ├── yolov8_seg/         # YOLOv8-seg 头文件
+│   └── ocsort/             # OCSort 追踪器头文件
+├── src/                    # 源文件
 │   ├── bubbleID.cpp
 │   ├── yolov8_seg_onnx.cpp
 │   ├── yolov8_seg_utils.cpp
-│   └── ocsort/            # OCSort 源文件
-├── examples/               # 示例代码
+│   └── ocsort/
+├── examples/               # 示例程序
 │   └── example.cpp
-└── third_party/           # 第三方依赖（需要用户自行添加）
+│
+├── data/                   # 输入数据（图像序列 + 视频，见 data/README.md）
+│   ├── README.md
+│   ├── Images-120W/        # 帧图像目录（示例）
+│   └── 120W.avi            # 视频文件（示例）
+├── weights/                # ONNX 模型
+│   └── bubble_seg.onnx
+├── result/                 # 运行输出目录（Generate 生成的文件）
+│   └── .gitkeep
+│
+├── build/                  # 构建目录（cmake 生成，已在 .gitignore）
+└── third_party/            # 第三方依赖（需自行添加 onnxruntime、matplotlib-cpp）
     ├── onnxruntime/
     └── matplotlib-cpp/
 ```
 
 ## 注意事项
 
-1. **模型路径**: 在 `Generate()` 和 `PlotInterfaceVelocity()` 方法中，模型路径是硬编码的。需要根据实际情况修改代码中的模型路径，或将其作为参数传入。
+1. **编译/链接报错**：若出现 ONNX Runtime、CUDA、curl 或头文件相关错误，请先查看上文 **「常见编译/链接错误与解决」** 表格。
 
-2. **图像格式**: 当前实现仅支持 `.jpg` 格式的图像文件。
+2. **模型路径**: 示例程序已支持通过命令行传入模型路径；若仓库中自带 ONNX 模型，将 `<model_path>` 指向该文件即可（如 `./model.onnx`）。在自行集成代码时，需在构造 `DataAnalysis` 时传入正确的模型路径。
 
-3. **视频格式**: 支持 OpenCV 支持的所有视频格式（如 `.avi`, `.mp4` 等）。
+3. **图像格式**: 当前实现仅支持 `.jpg` 格式的图像文件。
 
-4. **Python 依赖**: 如果使用 `Plotvf()` 和 `Plotbc()` 功能，需要安装 matplotlibcpp 和 Python matplotlib。
+4. **视频格式**: 支持 OpenCV 支持的所有视频格式（如 `.avi`, `.mp4` 等）。
 
-5. **性能**: 对于大型视频，处理时间可能较长。建议使用 GPU 加速。
+5. **Python 依赖**: 如果使用 `Plotvf()` 和 `Plotbc()` 功能，需要安装 matplotlibcpp 和 Python matplotlib。
+
+6. **性能**: 对于大型视频，处理时间可能较长。建议使用 GPU 加速。
 
 ## 相关项目
 

@@ -1,8 +1,8 @@
-# 构建目录
+# ========== 构建目录（保留目录结构不提交） ==========
 build/
 cmake-build-*/
 
-# 编译产物
+# ========== 编译产物 ==========
 *.o
 *.a
 *.so
@@ -16,20 +16,34 @@ cmake_install.cmake
 Makefile
 *.cmake
 
-# IDE 文件
+# ========== IDE / 编辑器 ==========
 .vscode/
 .idea/
 *.swp
 *.swo
 *~
 
-# 系统文件
+# ========== 系统文件 ==========
 .DS_Store
 Thumbs.db
 
-# 第三方依赖（如果包含在仓库中）
+# ========== 第三方依赖（需本地自行添加） ==========
 third_party/
 
-# 测试输出
+# ========== 数据与模型（保留目录，不提交大文件） ==========
+# data/：图像、视频等输入数据不提交，保留 data/README.md 和目录
+data/*
+!data/README.md
+!data/.gitkeep
+
+# weights/：ONNX 等模型文件通常较大，不提交；保留目录
+weights/*
+!weights/.gitkeep
+
+# result/：运行输出不提交，保留目录
+result/*
+!result/.gitkeep
+
+# ========== 测试与日志 ==========
 *.log
 test_results/

@@ -19,13 +19,17 @@ bool Yolov8SegOnnx::ReadModel(const std::string& modelPath, bool isCuda, int cud
         }
         else if (isCuda && (cuda_available != available_providers.end()))
         {
+#ifndef BUBBLEID_ORT_CPU_ONLY
             std::cout << "************* Infer model on GPU! *************" << std::endl;
 #if ORT_API_VERSION < ORT_OLD_VISON
 			OrtCUDAProviderOptions cudaOption;
-			cudaOption.device_id = cudaID; 
+			cudaOption.device_id = cudaID;
 			_OrtSessionOptions.AppendExecutionProvider_CUDA(cudaOption);
 #else
 			OrtStatus* status = OrtSessionOptionsAppendExecutionProvider_CUDA(_OrtSessionOptions, cudaID); // CUDA Execution Provider 加入到 ONNX Runtime 会话的配置中，并指定使用哪个 GPU 进行推理
+#endif
+#else
+            std::cout << "Built without ORT CUDA provider, using CPU. *************" << std::endl;
 #endif
         }
         else
