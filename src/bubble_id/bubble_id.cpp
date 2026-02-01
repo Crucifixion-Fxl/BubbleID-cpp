@@ -1,5 +1,5 @@
-#include "bubbleID/bubbleID.h"
-#include <iostream>
+#include "bubble_id/bubble_id.h"
+#include <spdlog/spdlog.h>
 #include <sys/stat.h>
 #include <sys/types.h>
 #include <dirent.h>
@@ -13,16 +13,14 @@
 #include "yolov8_seg/yolov8_seg_utils.h"
 #include "ocsort/OCSort.hpp"
 #include <Eigen/Dense>
-#include "matplotlibcpp.h"
+#include <matplot/matplot.h>
 #include <opencv2/opencv.hpp>
-
-namespace plt = matplotlibcpp;
 
 std::vector<std::vector<int>> DataAnalysis::load2DVectorFromFile(const std::string& filename) {
     std::vector<std::vector<int>> data;
     std::ifstream infile(filename);
     if (!infile.is_open()) {
-        std::cerr << "无法打开文件: " << filename << std::endl;
+        spdlog::error("无法打开文件: {}", filename);
         return data;
     }
     std::string line;
@@ -164,38 +162,46 @@ cv::Mat DataAnalysis::restoreMaskToOriginalSize(const cv::Rect& bbox, const cv::
 }
 
 
-void DataAnalysis::Generate(float thres){
+void DataAnalysis::Generate(float thres, bool save_detection_vis){
     std::string directory_path = this->imagesfolder_;
     std::string video_file = this->videopath_;
 
-    // define save locations
-    std::string file_path =  savefolder_ + "/bb-Boiling-" + extension_ + ".txt";
-    std::string output_file_path = savefolder_ + "/bb-Boiling-output-" + extension_ + ".txt";
-    std::string vapor_file = savefolder_ + "/vapor_" + extension_ + ".txt";
-    std::string vapor_base_file = savefolder_ + "/vaporBase_bt-" + extension_ + ".txt";
-    std::string bubble_size_file = savefolder_ + "/bubble_size_bt-" + extension_ + ".txt";
-    std::string bubind_file = savefolder_ + "/bubind_" + extension_ + ".txt";
-    std::string frameind_file = savefolder_ + "/frames_" + extension_ + ".txt";
-    std::string classind_file = savefolder_ + "/class_" + extension_ + ".txt";
-    std::string bubclassind_file = savefolder_ + "/bubclass_" + extension_ + ".txt";
-    
-    std::cout << this->savefolder_ << std::endl;
+    // 分类保存：txt 在 data/，检测可视化在 detection_vis/
+    const std::string data_dir = savefolder_ + "/data";
+    const std::string file_path = data_dir + "/bb-Boiling-" + extension_ + ".txt";
+    const std::string output_file_path = data_dir + "/bb-Boiling-output-" + extension_ + ".txt";
+    const std::string vapor_file = data_dir + "/vapor_" + extension_ + ".txt";
+    const std::string vapor_base_file = data_dir + "/vaporBase_bt-" + extension_ + ".txt";
+    const std::string bubble_size_file = data_dir + "/bubble_size_bt-" + extension_ + ".txt";
+    const std::string bubind_file = data_dir + "/bubind_" + extension_ + ".txt";
+    const std::string frameind_file = data_dir + "/frames_" + extension_ + ".txt";
+    const std::string classind_file = data_dir + "/class_" + extension_ + ".txt";
+    const std::string bubclassind_file = data_dir + "/bubclass_" + extension_ + ".txt";
+
+    spdlog::info("{}", this->savefolder_);
 
     if(!directoryExists(this->savefolder_)){
         makeDirectories(this->savefolder_);
     }
+    if (!directoryExists(data_dir))
+        makeDirectories(data_dir);
+    if (save_detection_vis) {
+        std::string vis_sub = savefolder_ + "/detection_vis";
+        if (!directoryExists(vis_sub))
+            makeDirectories(vis_sub);
+    }
 
     // 开始加载模型YOLOv8-seg
-    std::cout<<"加载模型开始"<< std::endl;
+    spdlog::info("加载模型开始");
     std::string model_path = this->modelweightsloc_;
     std::unique_ptr<Yolov8SegOnnx> infer_engine=std::make_unique<Yolov8SegOnnx>();
 
     if(!infer_engine->ReadModel(model_path,true,0,true)){
-        std::cout<<"加载模型失败"<< std::endl;
+        spdlog::error("加载模型失败");
         return;
     }
 
-    std::cout<<"加载模型完成"<< std::endl;
+    spdlog::info("加载模型完成");
     
     // 设置置信度
     bool ok;
@@ -206,8 +212,8 @@ void DataAnalysis::Generate(float thres){
 
     // 获取文件路径
     std::vector<std::string> image_paths = getImagePaths(directory_path);
-    std::cout << "文件获取完毕"<< std::endl;
-    std::cout << "Run instance segmentation model and save data"<< std::endl;
+    spdlog::info("文件获取完毕");
+    spdlog::info("Run instance segmentation model and save data");
 
     // 初始化数据存储
     std::vector<std::vector<float>> Bounding_Box;  // 存储边界框数据
@@ -220,22 +226,18 @@ void DataAnalysis::Generate(float thres){
         cv::Mat new_im = cv::imread(image_paths[i]);
         std::vector<OutputSeg> output_seg;
         bool find = infer_engine->OnnxDetect(new_im, output_seg);
-        if(i==340){
-            if (find) {
-                // 预分配颜色向量
-                static std::vector<cv::Scalar> color;
-                if (color.empty()) {
-                    srand(time(0));
-                    int b = rand() % 256;
-                    int g = rand() % 256;
-                    int r = rand() % 256;
-                    color.push_back(cv::Scalar(255, 255, 255));
-                    color.push_back(cv::Scalar(255, 255, 255));
-                }
-                // 移动到追踪部分绘制mask
-                DrawPred(new_im, output_seg, infer_engine->_className, color);
-                cv::imwrite("test_yolo_340.jpg", new_im);
+        if (save_detection_vis && find && !output_seg.empty()) {
+            static std::vector<cv::Scalar> color;
+            if (color.empty()) {
+                srand(static_cast<unsigned>(time(0)));
+                color.push_back(cv::Scalar(255, 255, 255));
+                color.push_back(cv::Scalar(255, 255, 255));
             }
+            cv::Mat vis_im = new_im.clone();
+            DrawPred(vis_im, output_seg, infer_engine->_className, color);
+            std::ostringstream oss;
+            oss << savefolder_ << "/detection_vis/detection_vis_" << extension_ << "_" << std::setfill('0') << std::setw(6) << (i + 1) << ".jpg";
+            cv::imwrite(oss.str(), vis_im);
         }
         if (find && !output_seg.empty()) {
             std::vector<std::vector<float>> converted_bounding_box;
@@ -316,7 +318,7 @@ void DataAnalysis::Generate(float thres){
                 bubble_size.push_back(frame_bubble_sizes);
             }
         } else {
-            std::cout << "No detections in frame " << i << std::endl;
+            spdlog::debug("No detections in frame {}", i);
         }
     }
 
@@ -324,7 +326,7 @@ void DataAnalysis::Generate(float thres){
     // 保存边界框数据
     std::ofstream bb_file(file_path.c_str());  // 使用 c_str() 转换字符串
     if (!bb_file.is_open()) {
-        std::cerr << "无法打开文件: " << file_path << std::endl;
+        spdlog::error("无法打开文件: {}", file_path);
         return;
     }
     for (const auto& box : Bounding_Box) {
@@ -338,7 +340,7 @@ void DataAnalysis::Generate(float thres){
     // 保存蒸汽数据
     std::ofstream vapor_out(vapor_file.c_str());
     if (!vapor_out.is_open()) {
-        std::cerr << "无法打开文件: " << vapor_file << std::endl;
+        spdlog::error("无法打开文件: {}", vapor_file);
         return;
     }
     for (const auto& v : vapor) {
@@ -349,7 +351,7 @@ void DataAnalysis::Generate(float thres){
     // 保存基础蒸汽数据
     std::ofstream vapor_base_out(vapor_base_file.c_str());
     if (!vapor_base_out.is_open()) {
-        std::cerr << "无法打开文件: " << vapor_base_file << std::endl;
+        spdlog::error("无法打开文件: {}", vapor_base_file);
         return;
     }
     for (const auto& v : vapor_base) {
@@ -360,7 +362,7 @@ void DataAnalysis::Generate(float thres){
     // 保存气泡大小数据
     std::ofstream bubble_size_out(bubble_size_file.c_str());
     if (!bubble_size_out.is_open()) {
-        std::cerr << "无法打开文件: " << bubble_size_file << std::endl;
+        spdlog::error("无法打开文件: {}", bubble_size_file);
         return;
     }
     for (const auto& sizes : bubble_size) {
@@ -371,9 +373,9 @@ void DataAnalysis::Generate(float thres){
     }
     bubble_size_out.close();
 
-    std::cout << "数据处理完成，已保存到文件" << std::endl;
+    spdlog::info("数据处理完成，已保存到文件");
 
-    std::cout << "Perform ocsort tracking on saved data" << std::endl;
+    spdlog::info("Perform ocsort tracking on saved data");
 
     ocsort::OCSort tracker(0.5, 10,20);
 
@@ -382,7 +384,7 @@ void DataAnalysis::Generate(float thres){
 
     cv::VideoCapture cap(video_file);
     if (!cap.isOpened()) {
-        std::cerr << "Error opening video file" << std::endl;
+        spdlog::error("Error opening video file");
         return;
     }
 
@@ -392,7 +394,7 @@ void DataAnalysis::Generate(float thres){
 
     std::ifstream bb_file_1(file_path.c_str());
     if (!bb_file_1.is_open()) {
-        std::cerr << "无法打开文件: " << file_path << std::endl;
+        spdlog::error("无法打开文件: {}", file_path);
         return;
     }
 
@@ -448,15 +450,15 @@ void DataAnalysis::Generate(float thres){
     bb_file_2.close();
     cap.release();
 
-    std::cout << "数据处理完成，已保存到文件" << std::endl;
+    spdlog::info("数据处理完成，已保存到文件");
 
 
-    std::cout << "Match tracking results to bubble indexs" << std::endl;
+    spdlog::info("Match tracking results to bubble indexs");
 
     // 读取数据
     std::ifstream bb_file_3(file_path.c_str());
     if (!bb_file_3.is_open()) {
-        std::cerr << "无法打开文件: " << file_path << std::endl;
+        spdlog::error("无法打开文件: {}", file_path);
         return;
     }
     std::vector<std::vector<float>> real_data;
@@ -486,7 +488,7 @@ void DataAnalysis::Generate(float thres){
     std::vector<std::vector<int>> pred_data;
     std::ifstream bb_file_4(output_file_path.c_str());
     if (!bb_file_4.is_open()) {
-        std::cerr << "无法打开文件: " << output_file_path << std::endl;
+        spdlog::error("无法打开文件: {}", output_file_path);
         return;
     }
     std::string line_4;
@@ -498,8 +500,8 @@ void DataAnalysis::Generate(float thres){
             data.push_back(std::stoi(value));   // 将字符串转换为整数
         }
         // 打印数据
-        std::cout << data[0] << "," << data[1] << "," << data[2]<< std::endl;
-        std::cout << "------------" << std::endl;
+        spdlog::debug("{},{},{}", data[0], data[1], data[2]);
+        spdlog::debug("------------");
         pred_data.push_back(data);
     }
 
@@ -683,14 +685,14 @@ void DataAnalysis::Generate(float thres){
             int frame_index = frames[j][i];
             int bub_index = bubInd[j][i];
             bub_class[j][i] = realgG[frame_index][bub_index];
-            std::cout << "bub_class[j][i]: " << bub_class[j][i] << std::endl;
+            spdlog::debug("bub_class[j][i]: {}", bub_class[j][i]);
         }
     }
 
     // Save bub_class to file
     save2DVectorToFile(bubclassind_file, bub_class);
 
-    std::cout << "Finish" << std::endl;
+    spdlog::info("Finish");
 
     return ;
 }
@@ -699,7 +701,7 @@ void DataAnalysis::Generate(float thres){
 void DataAnalysis::save2DVectorToFile(const std::string& filename, const std::vector<std::vector<int>>& data) {
     std::ofstream file(filename);
     if (!file.is_open()) {
-        std::cerr << "Error opening file: " << filename << std::endl;
+        spdlog::error("Error opening file: {}", filename);
         return;
     }
 
@@ -733,21 +735,24 @@ int DataAnalysis::findMaxNumber(std::vector<std::vector<int>>& data){
 
 // 打印二维向量的函数
 void DataAnalysis::print2DVector(const std::vector<std::vector<int>>& vec) {
-    std::cout << "------------" << std::endl;
+    spdlog::debug("------------");
     for (const auto& row : vec) {
         for (const auto& val : row) {
-            std::cout << val << " ";
+            spdlog::debug("{} ", val);
         }
-        std::cout << std::endl; // 每行结束后换行
     }
-    std::cout << "------------" << std::endl;
+    spdlog::debug("------------");
 }
 
 void DataAnalysis::saveDataToFiles() {
+    std::string data_dir = savefolder_ + "/data";
+    if (!directoryExists(data_dir))
+        makeDirectories(data_dir);
+
     // 保存蒸汽数据
-    std::ofstream vapor_file((savefolder_ + "/vapor_" + extension_ + ".txt").c_str());
+    std::ofstream vapor_file((data_dir + "/vapor_" + extension_ + ".txt").c_str());
     if (!vapor_file.is_open()) {
-        std::cerr << "无法打开文件: vapor_" << extension_ << ".txt" << std::endl;
+        spdlog::error("无法打开文件: vapor_{}.txt", extension_);
         return;
     }
     for (const auto& v : vapor_) {
@@ -756,9 +761,9 @@ void DataAnalysis::saveDataToFiles() {
     vapor_file.close();
 
     // 保存基础蒸汽数据
-    std::ofstream vapor_base_file((savefolder_ + "/vaporBase_bt-" + extension_ + ".txt").c_str());
+    std::ofstream vapor_base_file((data_dir + "/vaporBase_bt-" + extension_ + ".txt").c_str());
     if (!vapor_base_file.is_open()) {
-        std::cerr << "无法打开文件: vaporBase_bt-" << extension_ << ".txt" << std::endl;
+        spdlog::error("无法打开文件: vaporBase_bt-{}.txt", extension_);
         return;
     }
     for (const auto& v : vapor_base_) {
@@ -767,9 +772,9 @@ void DataAnalysis::saveDataToFiles() {
     vapor_base_file.close();
 
     // 保存气泡大小数据
-    std::ofstream bubble_size_file((savefolder_ + "/bubble_size_bt-" + extension_ + ".txt").c_str());
+    std::ofstream bubble_size_file((data_dir + "/bubble_size_bt-" + extension_ + ".txt").c_str());
     if (!bubble_size_file.is_open()) {
-        std::cerr << "无法打开文件: bubble_size_bt-" << extension_ << ".txt" << std::endl;
+        spdlog::error("无法打开文件: bubble_size_bt-{}.txt", extension_);
         return;
     }
     for (const auto& sizes : bubble_size_) {
@@ -781,9 +786,9 @@ void DataAnalysis::saveDataToFiles() {
     bubble_size_file.close();
 
     // 保存边界框数据
-    std::ofstream bounding_box_file((savefolder_ + "/bb-Boiling-" + extension_ + ".txt").c_str());
+    std::ofstream bounding_box_file((data_dir + "/bb-Boiling-" + extension_ + ".txt").c_str());
     if (!bounding_box_file.is_open()) {
-        std::cerr << "无法打开文件: bb-Boiling-" << extension_ << ".txt" << std::endl;
+        spdlog::error("无法打开文件: bb-Boiling-{}.txt", extension_);
         return;
     }
     for (const auto& box : bounding_box_) {
@@ -794,11 +799,11 @@ void DataAnalysis::saveDataToFiles() {
     }
     bounding_box_file.close();
 
-    std::cout << "数据已保存到文件" << std::endl;
+    spdlog::info("数据已保存到文件");
 }
 
 void DataAnalysis::Plotvf() {
-    std::string vf_path = savefolder_ + "/vapor_" + extension_ + ".txt";
+    std::string vf_path = savefolder_ + "/data/vapor_" + extension_ + ".txt";
     int width = 1280, height = 800;
     int window = 300;
     double vidstart = 0.0;
@@ -810,7 +815,7 @@ void DataAnalysis::Plotvf() {
     while (infile >> value) {
         vf.push_back(value / (width * height));
     }
-
+    spdlog::info("vf size: {}", vf.size());
     // 2. 生成时间序列
     std::vector<double> time(vf.size());
     for (size_t i = 0; i < vf.size(); ++i) {
@@ -834,22 +839,24 @@ void DataAnalysis::Plotvf() {
             rolling_avg_pos.push_back(rolling_avg[i]);
         }
     }
-
-    // 4. 画图并保存，不显示
-    plt::figure_size(600, 200);
-    plt::plot(time, vf, {{"color", "lightgray"}});
-    plt::plot(time_pos, rolling_avg_pos, {{"color", "darkblue"}, {"label", "Rolling Average"}});
-    plt::xlabel("Time (s)");
-    plt::ylabel("Vapor Fraction");
-    plt::legend();
-    std::string saveloc = savefolder_ + "vaporfig_" + extension_ + ".png";
-    std::cout << "Saving figure to: " << saveloc << std::endl;
-    plt::save(saveloc);
+    // 4. 画图并保存（Matplot++，quiet 模式仅保存不弹窗）
+    matplot::figure(true);  // quiet mode: 不更新交互窗口，仅 save 时输出
+    matplot::plot(time, vf, "k");
+    matplot::hold(matplot::on);
+    matplot::plot(time_pos, rolling_avg_pos, "b");
+    matplot::xlabel("Time (s)");
+    matplot::ylabel("Vapor Fraction");
+    matplot::legend({"Raw", "Rolling Average"});
+    std::string fig_dir = savefolder_ + "/figures";
+    if (!directoryExists(fig_dir)) makeDirectories(fig_dir);
+    std::string saveloc = fig_dir + "/vaporfig_" + extension_ + ".png";
+    spdlog::info("Saving figure to: {}", saveloc);
+    matplot::save(saveloc);
 }
 
 void DataAnalysis::Plotbc() {
-    // 1. 构造txt文件路径
-    std::string bs_path = savefolder_ + "/bubble_size_bt-" + extension_ + ".txt";
+    // 1. 构造txt文件路径（data 子文件夹）
+    std::string bs_path = savefolder_ + "/data/bubble_size_bt-" + extension_ + ".txt";
     int width = 1280, height = 800;;
     int window = 300;
     double vidstart = 0.0;
@@ -858,7 +865,7 @@ void DataAnalysis::Plotbc() {
     std::vector<int> bubble_counts;
     std::ifstream infile(bs_path);
     if (!infile.is_open()) {
-        std::cerr << "无法打开文件: " << bs_path << std::endl;
+        spdlog::error("无法打开文件: {}", bs_path);
         return;
     }
     std::string line;
@@ -900,35 +907,38 @@ void DataAnalysis::Plotbc() {
     // 修正类型：将bubble_counts转为double类型
     std::vector<double> bubble_counts_d(bubble_counts.begin(), bubble_counts.end());
 
-    // 5. 画图并保存
-    plt::figure_size(1200, 400);
-    plt::plot(time, bubble_counts_d, {{"color", "lightgray"}});
-    plt::plot(time_pos, rolling_avg_pos, {{"color", "darkblue"}, {"label", "Rolling Average"}});
-    plt::xlabel("Time (s)");
-    plt::ylabel("Bubble Count");
-    plt::legend();
-    std::string saveloc = savefolder_ + "bcfig_" + extension_ + ".png";
-    std::cout << "Saving figure to: " << saveloc << std::endl;
-    plt::save(saveloc);
+    // 5. 画图并保存（Matplot++，quiet 模式仅保存不弹窗）
+    matplot::figure(true);  // quiet mode: 不更新交互窗口，仅 save 时输出
+    matplot::plot(time, bubble_counts_d, "k");
+    matplot::hold(matplot::on);
+    matplot::plot(time_pos, rolling_avg_pos, "b");
+    matplot::xlabel("Time (s)");
+    matplot::ylabel("Bubble Count");
+    matplot::legend({"Raw", "Rolling Average"});
+    std::string fig_dir = savefolder_ + "/figures";
+    if (!directoryExists(fig_dir)) makeDirectories(fig_dir);
+    std::string saveloc = fig_dir + "/bcfig_" + extension_ + ".png";
+    spdlog::info("Saving figure to: {}", saveloc);
+    matplot::save(saveloc);
 }
 
 void DataAnalysis::PlotInterfaceVelocity(int bubble) {
     std::string directory_path = this->imagesfolder_;
 
-    std::string bubind_file = this->savefolder_ + "/bubind_" + this->extension_ + ".txt";
-    std::string frameind_file = this->savefolder_ + "/frames_" + this->extension_ + ".txt";
+    std::string bubind_file = this->savefolder_ + "/data/bubind_" + this->extension_ + ".txt";
+    std::string frameind_file = this->savefolder_ + "/data/frames_" + this->extension_ + ".txt";
 
     // 开始加载模型YOLOv8-seg
-    std::cout<<"加载模型开始"<< std::endl;
+    spdlog::info("加载模型开始");
     std::string model_path = this->modelweightsloc_;
     std::unique_ptr<Yolov8SegOnnx> infer_engine=std::make_unique<Yolov8SegOnnx>();
 
     if(!infer_engine->ReadModel(model_path,true,0,true)){
-        std::cout<<"加载模型失败"<< std::endl;
+        spdlog::error("加载模型失败");
         return;
     }
 
-    std::cout<<"加载模型完成"<< std::endl;
+    spdlog::info("加载模型完成");
     
     // 设置置信度
     bool ok;
@@ -1120,7 +1130,7 @@ void DataAnalysis::PlotInterfaceVelocity(int bubble) {
         }
         direction.push_back(class_val);
     }
-    std::cout << "direction size: " << direction.size() << std::endl;   
+    spdlog::info("direction size: {}", direction.size());   
 
     // 1. direction==1的mag取反
     for (size_t i = 0; i < direction.size(); ++i) {
@@ -1177,10 +1187,12 @@ void DataAnalysis::PlotInterfaceVelocity(int bubble) {
     // 转置（与imshow.T一致）
     cv::Mat data_color_T;
     cv::transpose(data_color, data_color_T);
-    // 保存图片
-    std::string saveloc = savefolder_ + "velocity_" + extension_ + "_" + std::to_string(bubble) + ".png";
+    // 保存图片到 figures 子文件夹
+    std::string fig_dir = savefolder_ + "/figures";
+    if (!directoryExists(fig_dir)) makeDirectories(fig_dir);
+    std::string saveloc = fig_dir + "/velocity_" + extension_ + "_" + std::to_string(bubble) + ".png";
     cv::imwrite(saveloc, data_color_T);
-    std::cout << "Velocity image saved to: " << saveloc << std::endl;
+    spdlog::info("Velocity image saved to: {}", saveloc);
 }
 
 
@@ -1212,7 +1224,7 @@ bool DataAnalysis::makeDirectories(const std::string& path) {
 
         if (!directoryExists(currentPath)) {
             if (mkdir(currentPath.c_str(), 0755) != 0) {
-                std::cerr << "无法创建目录: " << currentPath << std::endl;
+                spdlog::error("无法创建目录: {}", currentPath);
                 return false;
             }
         }

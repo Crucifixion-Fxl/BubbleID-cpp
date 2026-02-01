@@ -1,4 +1,5 @@
 #include "yolov8_seg/yolov8_seg_onnx.h"
+#include <spdlog/spdlog.h>
 using namespace std;
 using namespace cv;
 using namespace cv::dnn;
@@ -14,13 +15,13 @@ bool Yolov8SegOnnx::ReadModel(const std::string& modelPath, bool isCuda, int cud
 
         if (isCuda && (cuda_available == available_providers.end()))
         {
-            std::cout << "Your ORT build without GPU. Change to CPU." << std::endl;
-            std::cout << "************* Infer model on CPU! *************" << std::endl;
+            spdlog::warn("Your ORT build without GPU. Change to CPU.");
+            spdlog::info("************* Infer model on CPU! *************");
         }
         else if (isCuda && (cuda_available != available_providers.end()))
         {
 #ifndef BUBBLEID_ORT_CPU_ONLY
-            std::cout << "************* Infer model on GPU! *************" << std::endl;
+            spdlog::info("************* Infer model on GPU! *************");
 #if ORT_API_VERSION < ORT_OLD_VISON
 			OrtCUDAProviderOptions cudaOption;
 			cudaOption.device_id = cudaID;
@@ -29,12 +30,12 @@ bool Yolov8SegOnnx::ReadModel(const std::string& modelPath, bool isCuda, int cud
 			OrtStatus* status = OrtSessionOptionsAppendExecutionProvider_CUDA(_OrtSessionOptions, cudaID); // CUDA Execution Provider 加入到 ONNX Runtime 会话的配置中，并指定使用哪个 GPU 进行推理
 #endif
 #else
-            std::cout << "Built without ORT CUDA provider, using CPU. *************" << std::endl;
+            spdlog::info("Built without ORT CUDA provider, using CPU. *************");
 #endif
         }
         else
         {
-            std::cout << "************* Infer model on CPU! *************" << std::endl;
+            spdlog::info("************* Infer model on CPU! *************");
         }
         // 启用计算图的优化
         _OrtSessionOptions.SetGraphOptimizationLevel(GraphOptimizationLevel::ORT_ENABLE_EXTENDED);
@@ -143,7 +144,7 @@ bool Yolov8SegOnnx::ReadModel(const std::string& modelPath, bool isCuda, int cud
         //warm up
         if (isCuda && warmUp) { //warmup能够预热cuda的硬件资源、 提前缓存好优化后的计算图
             //draw run
-            cout << "Start warming up" << endl;
+            spdlog::info("Start warming up");
             size_t input_tensor_length = VectorProduct(_inputTensorShape); // 计算所有的元素的个数
             float* temp = new float[input_tensor_length];
             std::vector<Ort::Value> input_tensors;

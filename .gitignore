@@ -1,4 +1,4 @@
-# ========== 构建目录（保留目录结构不提交） ==========
+# ========== 构建目录 ==========
 build/
 cmake-build-*/
 
@@ -14,6 +14,7 @@ CMakeCache.txt
 CMakeFiles/
 cmake_install.cmake
 Makefile
+install_manifest.txt
 *.cmake
 
 # ========== IDE / 编辑器 ==========
@@ -27,22 +28,31 @@ Makefile
 .DS_Store
 Thumbs.db
 
-# ========== 第三方依赖（需本地自行添加） ==========
-third_party/
+# ========== 第三方（仅忽略用户自放的 onnxruntime，保留 matplotplusplus） ==========
+third_party/onnxruntime/
 
-# ========== 数据与模型（保留目录，不提交大文件） ==========
-# data/：图像、视频等输入数据不提交，保留 data/README.md 和目录
+# ========== 数据与输出（忽略内容，用 .gitkeep 保留目录结构） ==========
+# data/：输入数据不提交，保留 data/ 及 README、.gitkeep
 data/*
 !data/README.md
 !data/.gitkeep
 
-# weights/：ONNX 等模型文件通常较大，不提交；保留目录
+# weights/：模型不提交，保留目录
 weights/*
 !weights/.gitkeep
 
-# result/：运行输出不提交，保留目录
+# result/：运行输出不提交，仅保留目录及 .gitkeep，忽略所有生成文件（含图片）
 result/*
 !result/.gitkeep
+!result/data/
+result/data/*
+!result/data/.gitkeep
+!result/detection_vis/
+result/detection_vis/*
+!result/detection_vis/.gitkeep
+!result/figures/
+result/figures/*
+!result/figures/.gitkeep
 
 # ========== 测试与日志 ==========
 *.log

@@ -1,5 +1,5 @@
-#include "bubbleID/bubbleID.h"
-#include <iostream>
+#include "bubble_id/bubble_id.h"
+#include <spdlog/spdlog.h>
 
 // 调试用默认参数（无命令行参数时使用）
 static const std::string DEFAULT_IMAGES_FOLDER = "/root/workspace/BubbleID-cpp/data/Images-120W";
@@ -20,10 +20,8 @@ int main(int argc, char* argv[]) {
         modelweights = argv[5];
         device       = argv[6];
     } else {
-        std::cerr << "Usage: " << argv[0]
-                  << " <images_folder> <video_path> <save_folder> <extension> <model_path> <device>"
-                  << std::endl;
-        std::cerr << "No args: using default paths (for debugging)." << std::endl;
+        spdlog::warn("Usage: {} <images_folder> <video_path> <save_folder> <extension> <model_path> <device>", argv[0]);
+        spdlog::warn("No args: using default paths (for debugging).");
         imagesfolder = DEFAULT_IMAGES_FOLDER;
         videopath    = DEFAULT_VIDEO_PATH;
         savefolder   = DEFAULT_SAVE_FOLDER;
@@ -32,14 +30,13 @@ int main(int argc, char* argv[]) {
         device       = DEFAULT_DEVICE;
     }
 
-    std::cout << "=== BubbleID 示例程序 ===" << std::endl;
-    std::cout << "图像文件夹: " << imagesfolder << std::endl;
-    std::cout << "视频路径: " << videopath << std::endl;
-    std::cout << "保存文件夹: " << savefolder << std::endl;
-    std::cout << "扩展名: " << extension << std::endl;
-    std::cout << "模型路径: " << modelweights << std::endl;
-    std::cout << "设备: " << device << std::endl;
-    std::cout << std::endl;
+    spdlog::info("=== BubbleID 示例程序 ===");
+    spdlog::info("图像文件夹: {}", imagesfolder);
+    spdlog::info("视频路径: {}", videopath);
+    spdlog::info("保存文件夹: {}", savefolder);
+    spdlog::info("扩展名: {}", extension);
+    spdlog::info("模型路径: {}", modelweights);
+    spdlog::info("设备: {}", device);
 
     try {
         // 创建分析对象
@@ -52,25 +49,24 @@ int main(int argc, char* argv[]) {
             device
         );
 
-        std::cout << "开始执行气泡检测和追踪..." << std::endl;
+        spdlog::info("开始执行气泡检测和追踪...");
         // 执行气泡检测和追踪（置信度阈值 0.5）
         analysis.Generate(0.5);
-        std::cout << "气泡检测和追踪完成！" << std::endl;
+        spdlog::info("气泡检测和追踪完成！");
 
-        // 可选：绘制可视化图表
-        std::cout << "绘制蒸汽分数图..." << std::endl;
+        spdlog::info("绘制蒸汽分数图...");
         analysis.Plotvf();
         
-        std::cout << "绘制气泡数量图..." << std::endl;
+        spdlog::info("绘制气泡数量图...");
         analysis.Plotbc();
         
-        std::cout << "分析气泡界面速度（气泡ID=0）..." << std::endl;
+        spdlog::info("分析气泡界面速度（气泡ID=0）...");
         analysis.PlotInterfaceVelocity(0);
 
-        std::cout << "处理完成！结果已保存到: " << savefolder << std::endl;
+        spdlog::info("处理完成！结果已保存到: {}", savefolder);
     }
     catch (const std::exception& e) {
-        std::cerr << "错误: " << e.what() << std::endl;
+        spdlog::error("错误: {}", e.what());
         return 1;
     }
 

@@ -1,5 +1,5 @@
-#ifndef BUBBLEID_H
-#define BUBBLEID_H
+#ifndef BUBBLE_ID_H
+#define BUBBLE_ID_H
 #include <string>
 #include <opencv2/opencv.hpp>
 #include <sys/stat.h>
@@ -20,7 +20,11 @@ public:
                  const std::string& modelweightsloc,
                  const std::string& device);
 
-    void Generate(float thres = 0.5);
+    /** \brief 执行气泡检测与追踪
+     *  \param thres 置信度阈值
+     *  \param save_detection_vis 若为 true，将每帧检测可视化图保存到 savefolder/detection_vis/（默认 true）
+     */
+    void Generate(float thres = 0.5, bool save_detection_vis = true);
     void Plotvf();
     void Plotbc();
     void PlotInterfaceVelocity(int bubble);

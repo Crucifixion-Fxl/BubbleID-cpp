@@ -4,8 +4,8 @@
 #include "Eigen/Dense"
 #include <algorithm>
 #include "vector"
-#include "ocsort/lapjv.hpp"
-#define pi 3.1415926
+#include "ocsort/LapJv.hpp"
+#define OCSORT_PI 3.1415926
 
 namespace ocsort {
     std::tuple<Eigen::MatrixXf, Eigen::MatrixXf> speed_direction_batch(const Eigen::MatrixXf& dets,

@@ -28,18 +28,14 @@ BubbleID-cpp 是一个用于气泡检测、追踪和分析的 C++ 库。它基�
 
 ## 系统要求
 
-- **操作系统**: Linux / macOS
-- **编译器**: GCC 7+ 或 Clang 10+ (支持 C++17)
+以下以 **Linux（Ubuntu/Debian）** 为例。
+
+- **操作系统**: Linux
+- **编译器**: GCC 7+（支持 C++17）
 - **CMake**: 3.16 或更高版本
-- **依赖库**:
-  - OpenCV 4.x
-  - Eigen3
-  - ONNX Runtime
-  - Python3 (用于 matplotlibcpp，可选)
+- **依赖库**: OpenCV 4.x、Eigen3、ONNX Runtime、libcurl、spdlog（日志）、gnuplot（Plotvf/Plotbc 绘图后端）
 
 ## 安装依赖
-
-### Ubuntu/Debian
 
 ```bash
 sudo apt-get update
@@ -49,17 +45,10 @@ sudo apt-get install -y \
     libopencv-dev \
     libeigen3-dev \
     libcurl4-openssl-dev \
-    python3-dev \
-    python3-numpy
+    gnuplot
 ```
 
 > **说明**: `libcurl4-openssl-dev` 用于满足 OpenCV 依赖链中 libgdal/libnetcdf 对 libcurl 的链接需求，缺少时链接示例程序会报 `undefined reference to 'curl_*@CURL_OPENSSL_4'`。
-
-### macOS
-
-```bash
-brew install opencv eigen python3 numpy
-```
 
 ### ONNX Runtime
 
@@ -74,36 +63,33 @@ brew install opencv eigen python3 numpy
 ```
 third_party/
 ├── onnxruntime/    # 必须：ONNX Runtime 解压后的目录（含 include/、lib/）
-└── matplotlib-cpp/  # 可选：用于 Plotvf/Plotbc 可视化，仅头文件
+└── matplotplusplus/  # 可选：用于 Plotvf/Plotbc 可视化（需系统安装 gnuplot）
 ```
 
-## 编译安装
+## 编译与安装
 
 ```bash
-# 创建构建目录
 mkdir build && cd build
 
-# 配置 CMake（按需设置）
+# 配置（ONNX Runtime 在 third_party/onnxruntime 时可省略 -DONNXRUNTIME_DIR）
 cmake .. \
     -DONNXRUNTIME_DIR=/path/to/onnxruntime \
     -DUSE_ORT_CUDA=OFF \
     -DCMAKE_INSTALL_PREFIX=/usr/local
-```
-
-**常用选项**：
-- `ONNXRUNTIME_DIR`：ONNX Runtime 根目录（未放在 `third_party/onnxruntime` 时必设）。
-- `USE_ORT_CUDA`：使用 **CPU 版** ONNX Runtime 时务必设为 `OFF`，否则会链接错误；使用带 CUDA 的 ORT 时可设为 `ON`。
-
-```bash
-# 仅使用默认 third_party 路径时的最简配置
-cmake ..
 
 # 编译
 cmake --build . -j$(nproc)
 
-# 安装（可选）
+# 安装到系统（可选）
 sudo cmake --install .
 ```
+
+**CMake 选项**：
+
+| 选项 | 默认值 | 说明 |
+|------|--------|------|
+| `ONNXRUNTIME_DIR` | `third_party/onnxruntime` | ONNX Runtime 根目录（含 include/、lib/） |
+| `USE_ORT_CUDA` | `OFF` | CPU 版 ORT 保持 OFF；带 CUDA 的 ORT 可设为 `ON` |
 
 ## 常见编译/链接错误与解决
 
@@ -114,6 +100,7 @@ sudo cmake --install .
 | `undefined reference to 'curl_*@CURL_OPENSSL_4'`（来自 libgdal / libnetcdf） | OpenCV 依赖链需要 libcurl，但未安装或未链接 | 安装开发包：`sudo apt-get install libcurl4-openssl-dev`，并确保 CMake 能找到 CURL（项目已配置 `target_link_libraries(… CURL::libcurl)`） |
 | `Association.hpp` / 其他 ocsort 头文件找不到 | 头文件路径与 `#include` 写法不一致 | 源码中应使用 `#include "ocsort/xxx.hpp"`，且 CMake 中已包含 `include/` 目录，无需再单独加 `include/ocsort` |
 | 运行时报 `libstdc++.so.6: version 'GLIBCXX_3.4.30' not found`（required by libgdal / libicuuc） | 环境中优先加载了 **Miniconda/conda** 里较旧的 `libstdc++`，而系统 libgdal 等需要更新版符号 | 运行时优先使用系统库：`LD_LIBRARY_PATH=/usr/lib/x86_64-linux-gnu:/lib/x86_64-linux-gnu:$LD_LIBRARY_PATH ./build/bin/bubbleID_example`；或先执行 `conda deactivate` 再运行；或使用 `LD_PRELOAD=/usr/lib/x86_64-linux-gnu/libstdc++.so.6 ./build/bin/bubbleID_example` |
+| 调用 Plotvf/Plotbc 时报 `gnuplot: not found` | Matplot++ 使用 gnuplot 作为绘图后端，系统未安装 | 安装 gnuplot：`sudo apt-get install gnuplot` |
 
 若清理后重新配置仍报错，可先删除 `build` 再执行：
 
@@ -121,6 +108,23 @@ sudo cmake --install .
 rm -rf build && mkdir build && cd build
 cmake .. -DUSE_ORT_CUDA=OFF
 cmake --build . -j$(nproc)
+```
+
+### 验证与运行
+
+在项目根目录执行（需已准备图像目录、视频、ONNX 模型）：
+
+```bash
+./build/bin/bubbleID_example <图像文件夹> <视频路径> <结果保存目录> <扩展名> <模型.onnx> cpu
+```
+
+结果将保存在“结果保存目录”下，并按类型放入子目录：`data/`（txt）、`detection_vis/`（检测可视化图）、`figures/`（分析图表）。详见下文「输出文件说明」。
+
+### 卸载（若曾安装到系统）
+
+```bash
+cd build
+sudo xargs rm -f < install_manifest.txt
 ```
 
 ## 使用方法
@@ -144,7 +148,7 @@ cmake --build . -j$(nproc)
 ### 基本使用（代码集成）
 
 ```cpp
-#include "bubbleID/bubbleID.h"
+#include "bubble_id/bubble_id.h"
 #include <iostream>
 
 int main() {
@@ -180,19 +184,35 @@ int main() {
 }
 ```
 
-### 输出文件说明
+### 输出文件说明（分类保存）
 
-执行 `Generate()` 后，会在 `savefolder` 目录下生成以下文件：
+所有结果均在 `savefolder` 下按类型放入子文件夹：
 
-- `bb-Boiling-{extension}.txt`: 原始检测结果（帧ID x1 y1 x2 y2 置信度 类别）
-- `bb-Boiling-output-{extension}.txt`: 追踪结果（帧ID,追踪ID,命中次数,x1,y1,x2,y2）
-- `vapor_{extension}.txt`: 每帧的蒸汽区域像素数
-- `vaporBase_bt-{extension}.txt`: 每帧的基础蒸汽区域像素数
-- `bubble_size_bt-{extension}.txt`: 每帧每个气泡的大小
-- `bubind_{extension}.txt`: 每个追踪目标在各帧中的边界框索引
-- `frames_{extension}.txt`: 每个追踪目标出现的帧号列表
-- `class_{extension}.txt`: 每帧中每个检测目标的类别
-- `bubclass_{extension}.txt`: 每个追踪目标在各帧中的类别
+- **`savefolder/data/`**（txt 数据）：执行 `Generate()` 后生成
+  - `bb-Boiling-{extension}.txt`: 原始检测结果（帧ID x1 y1 x2 y2 置信度 类别）
+  - `bb-Boiling-output-{extension}.txt`: 追踪结果（帧ID,追踪ID,命中次数,x1,y1,x2,y2）
+  - `vapor_{extension}.txt`: 每帧的蒸汽区域像素数
+  - `vaporBase_bt-{extension}.txt`: 每帧的基础蒸汽区域像素数
+  - `bubble_size_bt-{extension}.txt`: 每帧每个气泡的大小
+  - `bubind_{extension}.txt`: 每个追踪目标在各帧中的边界框索引
+  - `frames_{extension}.txt`: 每个追踪目标出现的帧号列表
+  - `class_{extension}.txt`: 每帧中每个检测目标的类别
+  - `bubclass_{extension}.txt`: 每个追踪目标在各帧中的类别
+- **`savefolder/detection_vis/`**（检测可视化图）：`Generate(..., true)` 时每帧保存
+  - `detection_vis_{extension}_000001.jpg` 等
+- **`savefolder/figures/`**（分析图表）：调用 `Plotvf()`、`Plotbc()`、`PlotInterfaceVelocity(bubble)` 后生成
+
+### 输出图表说明
+
+以下 PNG 图保存在 **`savefolder/figures/`** 下，含义如下。
+
+| 文件名 | 保存位置 | 对应方法 | 图的含义 | 如何解读 |
+|--------|----------|----------|----------|----------|
+| `vaporfig_{extension}.png` | `figures/` | `Plotvf()` | **蒸汽分数时间序列**：每帧蒸汽区域占整帧像素的比例随时间变化。 | **横轴**：时间（s）。**纵轴**：蒸汽分数（0～1）。灰色折线为原始值，蓝色折线为滑动平均。用于观察整体汽化强度随时间的变化。 |
+| `bcfig_{extension}.png` | `figures/` | `Plotbc()` | **气泡数量时间序列**：每帧检测到的气泡个数随时间变化。 | **横轴**：时间（s）。**纵轴**：气泡数量。灰色折线为原始值，蓝色折线为滑动平均。用于观察沸腾强度、成核与合并等。 |
+| `velocity_{extension}_{bubble}.png` | `figures/` | `PlotInterfaceVelocity(bubble)` | **指定气泡的界面速度空间-时间图**：该气泡边界上各位置、各时刻的界面法向速度。 | **横轴**：沿气泡轮廓的位置（轮廓重采样为约 200 点，相当于沿边界走一圈）。**纵轴**：时间（帧对顺序）。**颜色**：界面速度（暖色=界面向外长/生长，冷色=界面向内缩/冷凝）。用于分析单个气泡的生长/收缩在空间和时间上的分布。 |
+
+**界面速度图补充说明**：`PlotInterfaceVelocity(bubble)` 针对**追踪 ID 为 `bubble` 的那一个气泡**，在其出现的各帧上提取轮廓，在相邻帧之间用最近邻配对轮廓点，用位移除以时间得到速度；若下一帧匹配点在气泡内部则速度取负（向内）。图中数据经高斯平滑并归一化到固定范围后以伪彩色显示。
 
 ## API 文档
 
@@ -213,7 +233,7 @@ DataAnalysis(
 
 #### 主要方法
 
-- `void Generate(float thres = 0.5)`: 执行气泡检测和追踪
+- `void Generate(float thres = 0.5, bool save_detection_vis = true)`: 执行气泡检测和追踪；`save_detection_vis` 为 true 时每帧保存检测可视化到 `savefolder/detection_vis/`
 - `void Plotvf()`: 绘制蒸汽分数时间序列图
 - `void Plotbc()`: 绘制气泡数量时间序列图
 - `void PlotInterfaceVelocity(int bubble)`: 绘制指定气泡的界面速度图
@@ -232,21 +252,26 @@ DataAnalysis(
 BubbleID-cpp/
 ├── CMakeLists.txt          # CMake 构建配置
 ├── README.md               # 本文档
-├── INSTALL.md              # 安装说明
-├── PACKAGE_INFO.md         # 包信息
-├── install.sh              # 安装脚本
 ├── LICENSE
 │
 ├── include/                # 头文件
-│   ├── bubbleID/
-│   │   └── bubbleID.h
+│   ├── bubble_id/
+│   │   └── bubble_id.h
 │   ├── yolov8_seg/         # YOLOv8-seg 头文件
 │   └── ocsort/             # OCSort 追踪器头文件
-├── src/                    # 源文件
-│   ├── bubbleID.cpp
-│   ├── yolov8_seg_onnx.cpp
-│   ├── yolov8_seg_utils.cpp
-│   └── ocsort/
+├── src/                    # 源文件（按功能分目录）
+│   ├── bubble_id/          # 分析库（蒸汽分数、气泡数量、界面速度等）
+│   │   └── bubble_id.cpp
+│   ├── yolov8_seg/         # 检测/分割模型（YOLOv8-seg 提取结果）
+│   │   ├── yolov8_seg_onnx.cpp
+│   │   └── yolov8_seg_utils.cpp
+│   └── ocsort/             # 追踪（辅助 yolov8 多目标追踪）
+│       ├── Association.cpp
+│       ├── KalmanBoxTracker.cpp
+│       ├── KalmanFilter.cpp
+│       ├── LapJv.cpp
+│       ├── OCSort.cpp
+│       └── Utilities.cpp
 ├── examples/               # 示例程序
 │   └── example.cpp
 │
@@ -260,9 +285,23 @@ BubbleID-cpp/
 │   └── .gitkeep
 │
 ├── build/                  # 构建目录（cmake 生成，已在 .gitignore）
-└── third_party/            # 第三方依赖（需自行添加 onnxruntime、matplotlib-cpp）
+└── third_party/            # 第三方依赖（需自行添加 onnxruntime；matplotplusplus、spdlog 已包含）
     ├── onnxruntime/
-    └── matplotlib-cpp/
+    ├── matplotplusplus/
+    └── spdlog/
+```
+
+### 作为子项目集成
+
+不安装到系统、在您的 CMake 项目中直接引用时：
+
+```cmake
+add_subdirectory(path/to/BubbleID-cpp)
+target_link_libraries(your_target bubble_id CURL::libcurl)
+```
+
+```cpp
+#include "bubble_id/bubble_id.h"
 ```
 
 ## 注意事项
@@ -275,7 +314,7 @@ BubbleID-cpp/
 
 4. **视频格式**: 支持 OpenCV 支持的所有视频格式（如 `.avi`, `.mp4` 等）。
 
-5. **Python 依赖**: 如果使用 `Plotvf()` 和 `Plotbc()` 功能，需要安装 matplotlibcpp 和 Python matplotlib。
+5. **绘图依赖**: 如果使用 `Plotvf()` 和 `Plotbc()` 功能，需要系统安装 **gnuplot**（Matplot++ 后端）：`sudo apt-get install gnuplot`。
 
 6. **性能**: 对于大型视频，处理时间可能较长。建议使用 GPU 加速。
 

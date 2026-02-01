@@ -108,7 +108,7 @@ namespace ocsort {
         Eigen::MatrixXf diff_angle_cos = inertia_X_.array() * X.array() + inertia_Y_.array() * Y.array();
         diff_angle_cos = (diff_angle_cos.array().min(1).max(-1)).matrix();
         Eigen::MatrixXf diff_angle = Eigen::acos(diff_angle_cos.array());
-        diff_angle = (pi / 2.0 - diff_angle.array().abs()).array() / (pi);
+        diff_angle = (OCSORT_PI / 2.0 - diff_angle.array().abs()).array() / (OCSORT_PI);
         Eigen::Array<bool, 1, Eigen::Dynamic> valid_mask = Eigen::Array<bool, Eigen::Dynamic, 1>::Ones(previous_obs_.rows());
         valid_mask = valid_mask.array() * ((previous_obs_.col(4).array() >= 0).transpose()).array();
         Eigen::MatrixXf iou_matrix = iou_batch(detections, trackers);

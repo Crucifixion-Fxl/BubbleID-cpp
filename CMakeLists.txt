@@ -15,9 +15,13 @@ set(CMAKE_BUILD_PARALLEL_LEVEL 128)
 # 查找依赖包
 find_package(OpenCV REQUIRED)
 find_package(Eigen3 REQUIRED)
-find_package(Python3 COMPONENTS Interpreter Development REQUIRED)
-find_package(Python3 COMPONENTS NumPy)
 find_package(CURL REQUIRED)
+
+# spdlog（日志）
+set(SPDLOG_BUILD_EXAMPLE OFF CACHE BOOL "" FORCE)
+set(SPDLOG_BUILD_TESTS OFF CACHE BOOL "" FORCE)
+set(SPDLOG_MASTER_PROJECT OFF CACHE BOOL "" FORCE)
+add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/third_party/spdlog)
 
 # ONNX Runtime 路径配置（用户需要根据实际情况修改）
 if(NOT DEFINED ONNXRUNTIME_DIR)
@@ -27,13 +31,12 @@ endif()
 option(USE_ORT_CUDA "Link ONNX Runtime CUDA provider (set OFF for CPU-only ORT)" OFF)
 
 set(ONNXRUNTIME_INCLUDE_PATH "${ONNXRUNTIME_DIR}/include")
-set(MATPLOTLIBCPP_INCLUDE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/third_party/matplotlib-cpp/")
 file(GLOB ONNXRUNTIME_LIB_PATH "${ONNXRUNTIME_DIR}/lib/*.so")
 
-# matplotlibcpp 路径（可选，如果使用 Plotvf 和 Plotbc 功能）
-if(NOT DEFINED MATPLOTLIBCPP_DIR)
-    set(MATPLOTLIBCPP_DIR "${CMAKE_CURRENT_SOURCE_DIR}/third_party/matplotlib-cpp" CACHE PATH "matplotlib-cpp directory")
-endif()
+# Matplot++（Plotvf / Plotbc 绘图）
+set(MATPLOTPP_BUILD_EXAMPLES OFF CACHE BOOL "" FORCE)
+set(MATPLOTPP_BUILD_TESTS OFF CACHE BOOL "" FORCE)
+add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/third_party/matplotplusplus)
 
 # 包含目录
 include_directories(
@@ -41,21 +44,18 @@ include_directories(
     ${OpenCV_INCLUDE_DIRS}
     ${EIGEN3_INCLUDE_DIR}
     ${ONNXRUNTIME_INCLUDE_PATH}
-    ${MATPLOTLIBCPP_INCLUDE_PATH}
-    ${Python3_INCLUDE_DIRS}
-    ${Python3_NumPy_INCLUDE_DIRS}
 )
 
-# 源文件
+# 源文件（按功能分目录：yolov8_seg 检测/分割，ocsort 追踪，bubble_id 分析）
 set(BUBBLEID_SOURCES
-    src/bubbleID.cpp
-    src/yolov8_seg_onnx.cpp
-    src/yolov8_seg_utils.cpp
+    src/bubble_id/bubble_id.cpp
+    src/yolov8_seg/yolov8_seg_onnx.cpp
+    src/yolov8_seg/yolov8_seg_utils.cpp
     src/ocsort/Association.cpp
     src/ocsort/KalmanBoxTracker.cpp
     src/ocsort/KalmanFilter.cpp
     src/ocsort/OCSort.cpp
-    src/ocsort/lapjv.cpp
+    src/ocsort/LapJv.cpp
     src/ocsort/Utilities.cpp
 )
 
@@ -64,18 +64,17 @@ if(NOT USE_ORT_CUDA)
 endif()
 
 # 创建静态库
-add_library(bubbleID STATIC ${BUBBLEID_SOURCES})
+add_library(bubble_id STATIC ${BUBBLEID_SOURCES})
 
 # 链接库
-target_link_libraries(bubbleID
+target_link_libraries(bubble_id PUBLIC matplot
+    spdlog::spdlog
     ${OpenCV_LIBS}
     ${ONNXRUNTIME_LIB_PATH}
-    Python3::Python
-    Python3::Module
 )
 
 # 安装配置
-install(TARGETS bubbleID
+install(TARGETS bubble_id
     ARCHIVE DESTINATION lib
     LIBRARY DESTINATION lib
     RUNTIME DESTINATION bin
@@ -90,5 +89,5 @@ install(DIRECTORY include/
 option(BUILD_EXAMPLES "Build example programs" ON)
 if(BUILD_EXAMPLES)
     add_executable(bubbleID_example examples/example.cpp)
-    target_link_libraries(bubbleID_example bubbleID CURL::libcurl)
+    target_link_libraries(bubbleID_example bubble_id CURL::libcurl)
 endif()
